@@ -1,0 +1,73 @@
+version: '3'
+services:
+    loan-nginx:
+        image: nginx:1.24.0-alpine
+        volumes:
+            - ./:/var/www/
+            - ./_docker/nginx/conf.d:/etc/nginx/conf.d
+        ports:
+            - ${NGINX_PORT}
+        container_name: loan_server_nginx
+        depends_on:
+            - app
+        networks:
+            - loan
+
+    app:
+        build:
+            context: .
+            dockerfile: _docker/app/Dockerfile
+        volumes:
+            - ./:/var/www
+        depends_on:
+            - loan-postgres
+        container_name: loan_app
+        networks:
+            - loan
+
+    loan-postgres:
+        image: postgres:latest
+        container_name: loan_postgres_db
+        restart: always
+        volumes:
+          - /database/loan_db:/var/lib/postgresql/data
+        environment:
+            POSTGRES_PASSWORD: root
+            POSTGRES_USER: root
+            POSTGRES_DB: test
+            POSTGRES_INITDB_ARGS: '--encoding=UTF-8 --lc-collate=C --lc-ctype=C'
+        ports:
+            - "5434:5434"
+        networks:
+            - loan
+
+    loan-pgadmin:
+        image: dpage/pgadmin4
+        container_name: loan_pgAdmin
+        ports:
+            - ${PGADMIN_PORT}
+        depends_on:
+            - loan-postgres
+        environment:
+            PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL}
+            PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD}
+        networks:
+            - loan
+
+    loan-cache:
+        image: redis:latest
+        container_name: loan_redis
+        hostname: 'loan_redis'
+        ports:
+            - ${REDIS_PORT}
+        environment:
+            - REDIS_PASSWORD=${REDIS_PASSWORD}
+            - REDIS_REPLICATION_MODE-master
+        volumes:
+            - ./_docker/redis/redis.conf:/usr/local/etc/redis/redis.conf
+        command: redis-server --requirepass ${REDIS_PASSWORD} --include /usr/local/etc/redis/redis.conf
+        networks:
+            - loan
+
+networks:
+    loan:
